@@ -95,7 +95,7 @@ install_shellcheck() {
     log "shellcheck already present"
     return 0
   }
-  # shellcheck publishes x86_64/aarch64, not amd64/arm64.
+  # Upstream publishes x86_64/aarch64, not amd64/arm64.
   local sc_arch
   case "${arch}" in
     amd64) sc_arch="x86_64" ;;

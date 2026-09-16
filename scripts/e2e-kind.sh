@@ -148,6 +148,55 @@ kind load docker-image "${IMAGE}" --name "${CLUSTER_NAME}"
 # ---------------------------------------------------------------------------
 
 log "STEP 3/9 kubectl apply -k manifests/overlays/prod"
+# The overlay declares a ServiceMonitor and a PrometheusRule (monitoring.coreos.com).
+# A kind cluster has no Prometheus operator, so `kubectl apply -k` would stop with
+# "no matches for kind". Register exactly the two CRDs this lab declares - the operator
+# itself is out of scope here - so the rest of the overlay can be applied and proven.
+kubectl apply -f - <<'MONITORING_CRDS' | tee "${ARTIFACTS}/monitoring-crds.txt"
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: servicemonitors.monitoring.coreos.com
+spec:
+  group: monitoring.coreos.com
+  names:
+    kind: ServiceMonitor
+    listKind: ServiceMonitorList
+    plural: servicemonitors
+    singular: servicemonitor
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          x-kubernetes-preserve-unknown-fields: true
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: prometheusrules.monitoring.coreos.com
+spec:
+  group: monitoring.coreos.com
+  names:
+    kind: PrometheusRule
+    listKind: PrometheusRuleList
+    plural: prometheusrules
+    singular: prometheusrule
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          x-kubernetes-preserve-unknown-fields: true
+MONITORING_CRDS
+kubectl wait --for condition=established --timeout=90s \
+  crd/servicemonitors.monitoring.coreos.com crd/prometheusrules.monitoring.coreos.com
 kubectl apply -k manifests/overlays/prod
 kubectl -n "${PROD_NS}" rollout status deployment/demo-api --timeout="${ROLLOUT_TIMEOUT}" \
   | tee "${ARTIFACTS}/rollout-status.txt"

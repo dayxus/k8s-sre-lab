@@ -41,10 +41,8 @@ candidate_status="$(grep -m1 '^AUDIT_STATUS=' /tmp/audit-candidate.txt | cut -d=
 if [ "${candidate_status}" = "ok" ]; then
   log "3/5 candidate pins are green: publishing the report"
   cp "${CANDIDATE_REPORT}" "${REPORT_DIR}/weekly-audit.md"
-  failure_output=""
 else
   log "3/5 candidate pins failed the gate"
-  failure_output="$(cat "${CANDIDATE_REPORT}")"
   if [ "${pins_changed}" = "1" ]; then
     log "4/5 reverting the version bump and re-validating with the known-good pins"
     git checkout -- tools/versions.env docs/versions.md
