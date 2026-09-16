@@ -52,6 +52,19 @@ CRD_SCHEMA_LOCATION = (
 LINK_RE = re.compile(r"(?<![\w\"'(])(https?://[^\s<>)\]]+)")
 BADGE_HOSTS = ("img.shields.io", "shields.io", "badge")
 
+
+def display_path(path: Path) -> str:
+    """Render a path relative to the repository, or absolute when it lives outside it.
+
+    The weekly maintenance workflow writes the candidate report to a ``mktemp`` file
+    outside the checkout, so a bare ``relative_to(REPO_ROOT)`` would raise there.
+    """
+    try:
+        return str(Path(path).resolve().relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
 SHAPES = (
     (
         "kustomize/overlays/dev",
@@ -305,7 +318,7 @@ def main() -> int:
         kubeconform_exit != 0 or linter_exit != 0 or extended[0] != 0 or total_violations or broken
     )
     print("AUDIT_STATUS=%s" % ("failed" if failed else "ok"))
-    print("report: %s" % target.relative_to(REPO_ROOT))
+    print("report: %s" % display_path(target))
     return 0
 
 
