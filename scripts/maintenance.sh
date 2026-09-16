@@ -66,7 +66,12 @@ else
 fi
 
 log "5/5 commit only if something really changed"
-if git diff --quiet -- reports/weekly-audit.md docs/versions.md tools/versions.env; then
+# `git diff` says nothing about files that are not tracked yet, and the report starts life
+# untracked, so an untracked report has to count as a change or the first one never lands.
+report_tracked=1
+git ls-files --error-unmatch reports/weekly-audit.md >/dev/null 2>&1 || report_tracked=0
+
+if [ "${report_tracked}" = "1" ] && git diff --quiet -- reports/weekly-audit.md docs/versions.md tools/versions.env; then
   echo "no diff: nothing to commit"
 else
   git add reports/weekly-audit.md docs/versions.md tools/versions.env
