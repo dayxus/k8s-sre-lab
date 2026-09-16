@@ -110,14 +110,14 @@ def write_env(values: Dict[str, str]) -> None:
     header = VERSIONS_ENV.read_text(encoding="utf-8").split("\n")
     comment_block = []
     for line in header:
-        if line.startswith("#"):
-            comment_block.append(line)
-        elif not line.strip():
+        if line.startswith("#") or not line.strip():
             comment_block.append(line)
         else:
             break
     body = "\n".join("%s=%s" % (key, values[key]) for key in DEFAULT_ORDER if key in values)
-    VERSIONS_ENV.write_text("\n".join(comment_block).rstrip("\n") + "\n\n" + body + "\n", encoding="utf-8")
+    VERSIONS_ENV.write_text(
+        "\n".join(comment_block).rstrip("\n") + "\n\n" + body + "\n", encoding="utf-8"
+    )
 
 
 def render_versions_md(values: Dict[str, str]) -> str:
@@ -175,10 +175,9 @@ def detect_drift(values: Dict[str, str]) -> Dict[str, str]:
         tag = payload.get("tag_name", "")
         if not tag:
             continue
-        if key == "HELM_VERSION":
+        if key == "HELM_VERSION" and not tag.startswith("v3."):
             # Stay on the 3.x line; a Helm major upgrade is a deliberate change.
-            if not tag.startswith("v3."):
-                continue
+            continue
         if key == "KUSTOMIZE_VERSION":
             tag = tag.split("/")[-1]
         if tag != values.get(key):
@@ -220,7 +219,9 @@ def main() -> int:
         expected = render_versions_md(values)
         actual = VERSIONS_DOC.read_text(encoding="utf-8") if VERSIONS_DOC.exists() else ""
         if expected != actual:
-            print("docs/versions.md is stale; run scripts/update_versions.py --write", file=sys.stderr)
+            print(
+                "docs/versions.md is stale; run scripts/update_versions.py --write", file=sys.stderr
+            )
             return 1
         print("docs/versions.md is in step with tools/versions.env")
         return 0

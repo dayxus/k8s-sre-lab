@@ -18,9 +18,10 @@ import os
 import re
 import shutil
 import subprocess
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TOOLS_DIR = REPO_ROOT / ".tools"
@@ -40,19 +41,25 @@ MANAGED_BY_ALLOWED = ("kustomize", "Helm")
 # Workloads and policies that the invariants apply to.
 WORKLOAD_KINDS = ("Deployment", "StatefulSet", "DaemonSet")
 POLICY_KINDS = ("PodDisruptionBudget", "HorizontalPodAutoscaler", "NetworkPolicy")
-LABELLED_KINDS = WORKLOAD_KINDS + POLICY_KINDS + (
-    "Service",
-    "ConfigMap",
-    "Namespace",
-    "PriorityClass",
-    "ServiceMonitor",
-    "PrometheusRule",
+LABELLED_KINDS = (
+    WORKLOAD_KINDS
+    + POLICY_KINDS
+    + (
+        "Service",
+        "ConfigMap",
+        "Namespace",
+        "PriorityClass",
+        "ServiceMonitor",
+        "PrometheusRule",
+    )
 )
 
 FLOATING_TAGS = ("latest", "edge", "stable", "master", "main", "dev", "develop")
 
 # Prevents a floating tag from sneaking in as `repo:latest` with a digest-like suffix.
-IMAGE_RE = re.compile(r"^(?P<repo>[^:]+)(?::(?P<tag>[^:@]+))?(?:@(?P<digest>sha256:[0-9a-f]{64}))?$")
+IMAGE_RE = re.compile(
+    r"^(?P<repo>[^:]+)(?::(?P<tag>[^:@]+))?(?:@(?P<digest>sha256:[0-9a-f]{64}))?$"
+)
 
 MIN_TERMINATION_GRACE_SECONDS = 30
 MIN_SCALE_DOWN_STABILIZATION_SECONDS = 300
@@ -173,26 +180,31 @@ def inv1_probes_and_resources(docs: Sequence[Dict[str, Any]]) -> List[Violation]
                             "container %r declares no resources.limits.%s" % (name, field),
                         )
                     )
-            if "cpu" in requests and "cpu" in limits:
-                if parse_cpu_quantity(limits["cpu"]) < parse_cpu_quantity(requests["cpu"]):
-                    out.append(
-                        Violation(
-                            "INV1_probes_and_resources",
-                            rid,
-                            "container %r has a cpu limit below its request" % name,
-                        )
+            if (
+                "cpu" in requests
+                and "cpu" in limits
+                and parse_cpu_quantity(limits["cpu"]) < parse_cpu_quantity(requests["cpu"])
+            ):
+                out.append(
+                    Violation(
+                        "INV1_probes_and_resources",
+                        rid,
+                        "container %r has a cpu limit below its request" % name,
                     )
-            if "memory" in requests and "memory" in limits:
-                if parse_memory_quantity(limits["memory"]) < parse_memory_quantity(
-                    requests["memory"]
-                ):
-                    out.append(
-                        Violation(
-                            "INV1_probes_and_resources",
-                            rid,
-                            "container %r has a memory limit below its request" % name,
-                        )
+                )
+            if (
+                "memory" in requests
+                and "memory" in limits
+                and parse_memory_quantity(limits["memory"])
+                < parse_memory_quantity(requests["memory"])
+            ):
+                out.append(
+                    Violation(
+                        "INV1_probes_and_resources",
+                        rid,
+                        "container %r has a memory limit below its request" % name,
                     )
+                )
     return out
 
 
@@ -322,7 +334,9 @@ def inv4_security_context(docs: Sequence[Dict[str, Any]]) -> List[Violation]:
         pod_security = pod_spec.get("securityContext") or {}
         if pod_security.get("runAsNonRoot") is not True:
             out.append(
-                Violation("INV4_security_context", rid, "pod securityContext.runAsNonRoot is not true")
+                Violation(
+                    "INV4_security_context", rid, "pod securityContext.runAsNonRoot is not true"
+                )
             )
         seccomp = (pod_security.get("seccompProfile") or {}).get("type")
         if seccomp not in ("RuntimeDefault", "Localhost"):
@@ -381,9 +395,7 @@ def inv5_image_hygiene(docs: Sequence[Dict[str, Any]]) -> List[Violation]:
         for name, container in iter_containers(doc):
             image = container.get("image")
             if not image:
-                out.append(
-                    Violation("INV5_image_hygiene", rid, "container %r has no image" % name)
-                )
+                out.append(Violation("INV5_image_hygiene", rid, "container %r has no image" % name))
                 continue
             match = IMAGE_RE.match(str(image))
             tag = match.group("tag") if match else None
@@ -470,9 +482,7 @@ def inv6_disruption_and_autoscaling(docs: Sequence[Dict[str, Any]]) -> List[Viol
                 )
             )
         if not spec.get("selector", {}).get("matchLabels"):
-            out.append(
-                Violation("INV6_disruption_and_autoscaling", rid, "no matchLabels selector")
-            )
+            out.append(Violation("INV6_disruption_and_autoscaling", rid, "no matchLabels selector"))
 
     for hpa in hpas:
         rid = resource_id(hpa)
@@ -519,8 +529,7 @@ def inv6_disruption_and_autoscaling(docs: Sequence[Dict[str, Any]]) -> List[Viol
                     "INV6_disruption_and_autoscaling",
                     rid,
                     "scaleDown.stabilizationWindowSeconds=%r is below %ds; a short spike "
-                    "would churn replicas"
-                    % (window, MIN_SCALE_DOWN_STABILIZATION_SECONDS),
+                    "would churn replicas" % (window, MIN_SCALE_DOWN_STABILIZATION_SECONDS),
                 )
             )
         for direction in ("scaleUp", "scaleDown"):
@@ -613,7 +622,11 @@ def inv8_forbidden_primitives(docs: Sequence[Dict[str, Any]]) -> List[Violation]
 
         if list(walk(doc, "hostPath")):
             out.append(Violation("INV8_forbidden_primitives", rid, "uses a hostPath volume"))
-        if list(walk(doc, "hostNetwork")) or list(walk(doc, "hostPID")) or list(walk(doc, "hostIPC")):
+        if (
+            list(walk(doc, "hostNetwork"))
+            or list(walk(doc, "hostPID"))
+            or list(walk(doc, "hostIPC"))
+        ):
             out.append(
                 Violation(
                     "INV8_forbidden_primitives",
@@ -623,7 +636,9 @@ def inv8_forbidden_primitives(docs: Sequence[Dict[str, Any]]) -> List[Violation]
             )
         for value in walk(doc, "privileged"):
             if value is True:
-                out.append(Violation("INV8_forbidden_primitives", rid, "runs a privileged container"))
+                out.append(
+                    Violation("INV8_forbidden_primitives", rid, "runs a privileged container")
+                )
         for value in walk(doc, "allowPrivilegeEscalation"):
             if value is True:
                 out.append(
@@ -685,7 +700,9 @@ def inv_network_isolation(docs: Sequence[Dict[str, Any]]) -> List[Violation]:
             if np.get("spec", {}).get("podSelector", {}).get("matchLabels") == selector
         ]
         if not matching:
-            out.append(Violation("EXTRA_network_isolation", rid, "no NetworkPolicy selects these pods"))
+            out.append(
+                Violation("EXTRA_network_isolation", rid, "no NetworkPolicy selects these pods")
+            )
             continue
         for np in matching:
             policy_types = np.get("spec", {}).get("policyTypes") or []

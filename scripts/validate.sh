@@ -50,13 +50,16 @@ for values in values values-dev values-prod; do
 done
 
 hr "kubeconform ${KUBECONFORM_VERSION} against Kubernetes ${KUBERNETES_VERSION}"
+# kubeconform wants a bare x.y.z; tools/versions.env keeps the `v` prefix because the
+# kubectl and kind download URLs need it.
+KUBECONFORM_KUBERNETES_VERSION="${KUBERNETES_VERSION#v}"
 # -strict rejects unknown fields; CRs without an upstream schema (Prometheus operator)
 # are resolved from the datree CRDs catalog, and anything still unknown is reported
 # rather than silently skipped (-ignore-missing-schemas is NOT used).
 kubeconform \
   -strict \
   -summary \
-  -kubernetes-version "${KUBERNETES_VERSION}" \
+  -kubernetes-version "${KUBECONFORM_KUBERNETES_VERSION}" \
   -schema-location default \
   -schema-location "${CRD_SCHEMA_LOCATION}" \
   "${BUILD_DIR}"/kustomize-dev.yaml \

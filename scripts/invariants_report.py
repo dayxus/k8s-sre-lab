@@ -14,7 +14,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from invariants import (  # noqa: E402
+from invariants import (
     INVARIANTS,
     REPO_ROOT,
     check_all,

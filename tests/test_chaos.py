@@ -12,13 +12,17 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from conftest import REPO_ROOT
+
 from invariants import LABELS_REQUIRED
 
 CHAOS_DIR = REPO_ROOT / "chaos"
 EXPERIMENTS = ("pod-delete.yaml", "cpu-stress.yaml", "network-latency.yaml")
-EXPECTED_KINDS = {"pod-delete.yaml": "PodChaos", "cpu-stress.yaml": "StressChaos", "network-latency.yaml": "NetworkChaos"}
+EXPECTED_KINDS = {
+    "pod-delete.yaml": "PodChaos",
+    "cpu-stress.yaml": "StressChaos",
+    "network-latency.yaml": "NetworkChaos",
+}
 TARGET_LABELS = {
     "app.kubernetes.io/name": "demo-api",
     "app.kubernetes.io/instance": "k8s-sre-lab",
@@ -88,12 +92,14 @@ def test_every_experiment_is_documented_with_a_rollback():
     for name in EXPERIMENTS:
         assert name in readme, "%s is not referenced from chaos/README.md" % name
     for required_phrase in ("Hypothesis", "Success criterion", "Rollback", "measure"):
-        assert required_phrase.lower() in readme.lower(), "chaos/README.md never mentions %s" % required_phrase
+        assert required_phrase.lower() in readme.lower(), (
+            "chaos/README.md never mentions %s" % required_phrase
+        )
 
 
 def test_chaos_directory_has_no_stray_files():
     files = sorted(path.name for path in CHAOS_DIR.iterdir() if path.is_file())
-    assert files == sorted(list(EXPERIMENTS) + ["README.md"]), files
+    assert files == sorted([*list(EXPERIMENTS), "README.md"]), files
 
 
 def test_no_chaos_manifest_is_a_kustomize_resource():

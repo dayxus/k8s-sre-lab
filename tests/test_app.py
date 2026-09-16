@@ -60,7 +60,7 @@ def get(url: str):
 
 
 def test_healthz_is_liveness_only(api):
-    module, base = api
+    _module, base = api
     status, body, _ = get(base + "/healthz")
     assert status == 200
     assert json.loads(body)["status"] == "ok"
@@ -152,7 +152,7 @@ def test_work_endpoint_is_bounded(api):
 
 
 def test_unknown_path_is_404_and_counted(api):
-    module, base = api
+    _module, base = api
     status, body, _ = get(base + "/nope")
     assert status == 404
     assert json.loads(body)["error"] == "not found"

@@ -68,7 +68,13 @@ install_kube_linter() {
     return 0
   }
   local tarball="${TOOLS_DIR}/kube-linter.tar.gz"
-  fetch "https://github.com/stackrox/kube-linter/releases/download/${KUBE_LINTER_VERSION}/kube-linter-${os}_${arch}.tar.gz" "${tarball}"
+  # Upstream names the amd64 asset without a suffix (`kube-linter-linux.tar.gz`) and
+  # only appends `_arm64` for the ARM builds; the arch suffix is not uniform.
+  local asset="${os}"
+  if [ "${arch}" = "arm64" ]; then
+    asset="${os}_arm64"
+  fi
+  fetch "https://github.com/stackrox/kube-linter/releases/download/${KUBE_LINTER_VERSION}/kube-linter-${asset}.tar.gz" "${tarball}"
   tar -xzf "${tarball}" -C "${TOOLS_DIR}" kube-linter
   rm -f "${tarball}"
 }

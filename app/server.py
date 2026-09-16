@@ -23,6 +23,7 @@ keeps serving in-flight requests until either they finish or
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import signal
@@ -60,9 +61,7 @@ class State:
     def __init__(self) -> None:
         self.started_at = time.time()
         self.ready_delay = env_float("READY_DELAY_SECONDS", READY_DELAY_SECONDS_DEFAULT)
-        self.shutdown_grace = env_float(
-            "SHUTDOWN_GRACE_SECONDS", SHUTDOWN_GRACE_SECONDS_DEFAULT
-        )
+        self.shutdown_grace = env_float("SHUTDOWN_GRACE_SECONDS", SHUTDOWN_GRACE_SECONDS_DEFAULT)
         # FAIL_READY is baked in at start; the chaos switch flips the same flag at
         # runtime so the kind E2E can prove endpoint removal without waiting for a
         # new ReplicaSet to roll out.
@@ -162,9 +161,7 @@ def render_metrics(state: dict) -> str:
         "# TYPE demo_api_requests_total counter",
     ]
     for (path, method), count in sorted(state["requests_total"].items()):
-        lines.append(
-            'demo_api_requests_total{path="%s",method="%s"} %d' % (path, method, count)
-        )
+        lines.append('demo_api_requests_total{path="%s",method="%s"} %d' % (path, method, count))
     lines.append("")
     return "\n".join(lines)
 
@@ -173,11 +170,9 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "demo-api/" + VERSION
     protocol_version = "HTTP/1.1"
 
-    def log_message(self, fmt: str, *args) -> None:  # noqa: A003 - stdlib signature
+    def log_message(self, fmt: str, *args) -> None:
         if env_bool("ACCESS_LOG", True):
-            sys.stderr.write(
-                "%s - %s\n" % (self.address_string(), fmt % args)
-            )
+            sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
 
     # -- helpers -----------------------------------------------------------
     def _send(self, status: int, body: bytes, content_type: str) -> None:
@@ -192,7 +187,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send(status, json.dumps(payload).encode("utf-8"), "application/json")
 
     # -- routing -----------------------------------------------------------
-    def do_GET(self) -> None:  # noqa: N802 - stdlib signature
+    def do_GET(self) -> None:
         path = self.path.split("?", 1)[0]
         STATE.enter(path, self.command)
         try:
@@ -229,10 +224,10 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             STATE.leave()
 
-    def do_HEAD(self) -> None:  # noqa: N802 - stdlib signature
+    def do_HEAD(self) -> None:
         self.do_GET()
 
-    def do_POST(self) -> None:  # noqa: N802 - stdlib signature
+    def do_POST(self) -> None:
         """The chaos switch: flip readiness at runtime, on one pod, deterministically.
 
         Disabled unless ENABLE_CHAOS_SWITCH=true, because a service that can be told
@@ -289,9 +284,7 @@ def main() -> int:
     server = build_server(port)
 
     def on_signal(signum, _frame):
-        sys.stderr.write(
-            "[demo-api] received signal %d, failing readiness and draining\n" % signum
-        )
+        sys.stderr.write("[demo-api] received signal %d, failing readiness and draining\n" % signum)
         STATE.begin_shutdown()
         threading.Thread(target=_drain_and_stop, args=(server,), daemon=True).start()
 
@@ -300,10 +293,8 @@ def main() -> int:
 
     threading.Thread(target=STATE.initialise, daemon=True).start()
     sys.stderr.write("[demo-api] %s listening on :%d\n" % (VERSION, port))
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         server.serve_forever(poll_interval=0.2)
-    except KeyboardInterrupt:
-        pass
     return 0
 
 

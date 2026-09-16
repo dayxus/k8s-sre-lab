@@ -10,6 +10,13 @@ select = ["E", "F", "W", "I", "B", "C4", "UP", "SIM", "RUF"]
 ignore = [
   # Long lines in PromQL blocks and error strings are more readable unsplit.
   "E501",
+  # The pyupgrade rules rewrite typing.Dict/Optional into PEP 585/604 builtin generics
+  # and %-formatting into f-strings. Both rewrites are rejected on purpose:
+  # * the modules keep `typing.*` in the annotations that are evaluated at runtime
+  #   (dataclass fields, argparse defaults) so the floor stays py39 without surprises,
+  # * the Prometheus exposition lines are built with %-formatting because they are full
+  #   of literal braces (`demo_api_ready 1`), which f-strings would force to {{ }}.
+  "UP",
 ]
 
 [tool.ruff.lint.per-file-ignores]

@@ -18,7 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from invariants import (  # noqa: E402  (import after sys.path tweak on purpose)
+from invariants import (
     REPO_ROOT,
     helm_template,
     kustomize_build,

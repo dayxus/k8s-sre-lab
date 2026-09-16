@@ -25,8 +25,9 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Tuple
 
 import yaml
 
@@ -34,8 +35,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from invariants import (  # noqa: E402
-    INVARIANTS,
     INVARIANT_DESCRIPTIONS,
+    INVARIANTS,
     check_all,
     count_by_invariant,
     helm_template,
@@ -52,7 +53,10 @@ LINK_RE = re.compile(r"(?<![\w\"'(])(https?://[^\s<>)\]]+)")
 BADGE_HOSTS = ("img.shields.io", "shields.io", "badge")
 
 SHAPES = (
-    ("kustomize/overlays/dev", lambda: kustomize_build(REPO_ROOT / "manifests" / "overlays" / "dev")),
+    (
+        "kustomize/overlays/dev",
+        lambda: kustomize_build(REPO_ROOT / "manifests" / "overlays" / "dev"),
+    ),
     (
         "kustomize/overlays/prod",
         lambda: kustomize_build(REPO_ROOT / "manifests" / "overlays" / "prod"),
@@ -126,7 +130,7 @@ def check_links() -> List[Tuple[str, str, int, str]]:
                     status = response.status
             except urllib.error.HTTPError as error:
                 status = error.code
-            except Exception:  # noqa: BLE001 - any transport error is a broken link here
+            except Exception:
                 status = 0
             if status == 0 or status >= 400:
                 severity = "warning" if badge else "failure"
@@ -148,7 +152,17 @@ def write_report(
     now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     total_violations = sum(sum(shape.values()) for shape in counts.values())
     broken = [link for link in links if link[0] == "failure"]
-    status = "ok" if (kubeconform_exit == 0 and linter_exit == 0 and extended[0] == 0 and total_violations == 0 and not broken) else "attention"
+    status = (
+        "ok"
+        if (
+            kubeconform_exit == 0
+            and linter_exit == 0
+            and extended[0] == 0
+            and total_violations == 0
+            and not broken
+        )
+        else "attention"
+    )
 
     lines = [
         "# Weekly audit",
@@ -157,10 +171,13 @@ def write_report(
         "",
         "- **Run:** %s" % now,
         "- **Status:** `%s`" % status,
-        "- **Kubernetes version used for schema checks:** `%s`" % versions.get("KUBERNETES_VERSION", "?"),
+        "- **Kubernetes version used for schema checks:** `%s`"
+        % versions.get("KUBERNETES_VERSION", "?"),
         "- **kind:** `%s`" % versions.get("KIND_VERSION", "?"),
-        "- **kubeconform:** `%s` (exit %d)" % (versions.get("KUBECONFORM_VERSION", "?"), kubeconform_exit),
-        "- **kube-linter:** `%s` (exit %d)" % (versions.get("KUBE_LINTER_VERSION", "?"), linter_exit),
+        "- **kubeconform:** `%s` (exit %d)"
+        % (versions.get("KUBECONFORM_VERSION", "?"), kubeconform_exit),
+        "- **kube-linter:** `%s` (exit %d)"
+        % (versions.get("KUBE_LINTER_VERSION", "?"), linter_exit),
         "- **pytest suite:** exit %d" % extended[0],
         "- **Invariant violations:** %d" % total_violations,
         "- **Broken document links:** %d" % len(broken),
@@ -175,8 +192,12 @@ def write_report(
         lines.append("| `%s` | %s |" % (invariant, " | ".join(row)))
     total_row = [str(sum(counts[name].values())) for name, _ in SHAPES]
     lines.append("| **total** | %s |" % " | ".join(total_row))
-    lines += ["", "Each column is a fully rendered deployment shape: `kustomize build` for the",
-              "three kustomize targets, `helm template` for the three value sets.", ""]
+    lines += [
+        "",
+        "Each column is a fully rendered deployment shape: `kustomize build` for the",
+        "three kustomize targets, `helm template` for the three value sets.",
+        "",
+    ]
 
     if details:
         lines += ["### Violations", "", "```"]
@@ -188,7 +209,10 @@ def write_report(
         lines.append("- `%s` - %s" % (invariant, INVARIANT_DESCRIPTIONS[invariant]))
     lines.append("")
 
-    lines += ["## kubeconform (`-strict`, Kubernetes %s)" % versions.get("KUBERNETES_VERSION", "?"), ""]
+    lines += [
+        "## kubeconform (`-strict`, Kubernetes %s)" % versions.get("KUBERNETES_VERSION", "?"),
+        "",
+    ]
     lines += ["```", kubeconform_out.strip() or "(no output)", "```", ""]
     lines += ["## kube-linter", "", "```", linter_out.strip() or "(no output)", "```", ""]
     lines += ["## pytest", "", "```", extended[1].strip() or "(no output)", "```", ""]
@@ -199,8 +223,16 @@ def write_report(
     else:
         lines += ["| Severity | Link | Status | File |", "| --- | --- | --- | --- |"]
         for severity, url, status_code, source in links:
-            lines.append("| %s | %s | %s | `%s` |" % (severity, url, status_code or "unreachable", source))
-    lines += ["", "---", "", "This file is committed by the scheduled workflow only when it changes.", ""]
+            lines.append(
+                "| %s | %s | %s | `%s` |" % (severity, url, status_code or "unreachable", source)
+            )
+    lines += [
+        "",
+        "---",
+        "",
+        "This file is committed by the scheduled workflow only when it changes.",
+        "",
+    ]
     return "\n".join(lines)
 
 
@@ -229,22 +261,21 @@ def main() -> int:
         str(build_dir / "helm-default.yaml"),
     ]
 
-    kubeconform_exit, kubeconform_out = capture(
-        [
-            tool_path("kubeconform"),
-            "-strict",
-            "-summary",
-            "-kubernetes-version",
-            versions.get("KUBERNETES_VERSION", "v1.37.0"),
-            "-schema-location",
-            "default",
-            "-schema-location",
-            CRD_SCHEMA_LOCATION,
-        ]
-        + targets
-    )
+    kubeconform_args = [
+        tool_path("kubeconform"),
+        "-strict",
+        "-summary",
+        "-kubernetes-version",
+        # kubeconform expects a bare x.y.z version, the pins carry the `v` prefix.
+        str(versions.get("KUBERNETES_VERSION", "v1.37.0")).lstrip("v"),
+        "-schema-location",
+        "default",
+        "-schema-location",
+        CRD_SCHEMA_LOCATION,
+    ]
+    kubeconform_exit, kubeconform_out = capture(kubeconform_args + targets)
     linter_exit, linter_out = capture(
-        [tool_path("kube-linter"), "lint", "--config", ".kube-linter.yaml"] + targets
+        [tool_path("kube-linter"), "lint", "--config", ".kube-linter.yaml", *targets]
     )
     counts, details = audit_invariants()
     links = [] if args.skip_network else check_links()
@@ -254,7 +285,15 @@ def main() -> int:
         extended = capture([sys.executable, "-m", "pytest", "-q"])
 
     report = write_report(
-        versions, kubeconform_exit, kubeconform_out, linter_exit, linter_out, counts, details, links, extended
+        versions,
+        kubeconform_exit,
+        kubeconform_out,
+        linter_exit,
+        linter_out,
+        counts,
+        details,
+        links,
+        extended,
     )
     target = Path(args.report)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -262,7 +301,9 @@ def main() -> int:
 
     broken = len([link for link in links if link[0] == "failure"])
     total_violations = sum(sum(shape.values()) for shape in counts.values())
-    failed = kubeconform_exit != 0 or linter_exit != 0 or extended[0] != 0 or total_violations or broken
+    failed = (
+        kubeconform_exit != 0 or linter_exit != 0 or extended[0] != 0 or total_violations or broken
+    )
     print("AUDIT_STATUS=%s" % ("failed" if failed else "ok"))
     print("report: %s" % target.relative_to(REPO_ROOT))
     return 0

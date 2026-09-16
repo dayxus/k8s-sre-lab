@@ -9,9 +9,16 @@ manifests, one of these fails.
 from __future__ import annotations
 
 import pytest
-
 from conftest import REPO_ROOT, find
-from invariants import INVARIANTS, INVARIANT_DESCRIPTIONS, check_all, count_by_invariant, run, tool_path
+
+from invariants import (
+    INVARIANT_DESCRIPTIONS,
+    INVARIANTS,
+    check_all,
+    count_by_invariant,
+    run,
+    tool_path,
+)
 
 SHAPES = ("helm_default", "helm_dev", "helm_prod")
 
@@ -98,9 +105,10 @@ def test_helm_prod_mirrors_the_prod_overlay(helm_prod_docs, prod_docs):
         assert helm_pod[field] == kustomize_pod[field], "%s differs" % field
 
     helm_budget = find(helm_prod_docs, "PodDisruptionBudget", "k8s-sre-lab")
-    assert helm_budget["spec"]["minAvailable"] == find(prod_docs, "PodDisruptionBudget", "demo-api")["spec"][
-        "minAvailable"
-    ]
+    assert (
+        helm_budget["spec"]["minAvailable"]
+        == find(prod_docs, "PodDisruptionBudget", "demo-api")["spec"]["minAvailable"]
+    )
 
 
 def test_helm_dev_mirrors_the_dev_overlay(helm_dev_docs, dev_docs):

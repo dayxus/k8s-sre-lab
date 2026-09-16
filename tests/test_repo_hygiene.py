@@ -13,7 +13,6 @@ import re
 from pathlib import Path
 
 import pytest
-
 from conftest import REPO_ROOT
 
 readme_en = REPO_ROOT / "README.md"
@@ -83,13 +82,24 @@ FORBIDDEN_PHRASES = [
 ]
 
 TEXT_SUFFIXES = (".md", ".py", ".yaml", ".yml", ".sh", ".toml", ".txt", ".tpl", ".env")
-SKIP_DIRS = {".git", ".tools", ".venv", "build", "artifacts", "__pycache__", ".pytest_cache", ".ruff_cache"}
+SKIP_DIRS = {
+    ".git",
+    ".tools",
+    ".venv",
+    "build",
+    "artifacts",
+    "__pycache__",
+    ".pytest_cache",
+    ".ruff_cache",
+}
 
 SECRET_PATTERNS = [
     re.compile(r"AKIA[0-9A-Z]{16}"),
     re.compile(r"gh[pous]_[A-Za-z0-9]{20,}"),
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
-    re.compile(r"(?i)\b(password|passwd|secret_key|api_key|access_token)\s*[:=]\s*['\"][^'\"]{6,}['\"]"),
+    re.compile(
+        r"(?i)\b(password|passwd|secret_key|api_key|access_token)\s*[:=]\s*['\"][^'\"]{6,}['\"]"
+    ),
 ]
 
 
@@ -187,7 +197,10 @@ def test_no_secrets_are_committed():
         text = path.read_text(errors="replace")
         for pattern in SECRET_PATTERNS:
             match = pattern.search(text)
-            assert not match, "possible secret in %s: %s" % (path.relative_to(REPO_ROOT), match.group(0))
+            assert not match, "possible secret in %s: %s" % (
+                path.relative_to(REPO_ROOT),
+                match.group(0),
+            )
 
 
 def test_no_floating_image_tags_in_manifests_or_chart():
@@ -198,7 +211,9 @@ def test_no_floating_image_tags_in_manifests_or_chart():
             if re.match(r"\s*image:\s*\S+:latest\s*$", line):
                 offenders.append(str(path.relative_to(REPO_ROOT)))
     dockerfile = (REPO_ROOT / "app" / "Dockerfile").read_text()
-    assert re.search(r"^FROM \S+:\S+", dockerfile, flags=re.M), "the base image is not pinned to a tag"
+    assert re.search(r"^FROM \S+:\S+", dockerfile, flags=re.M), (
+        "the base image is not pinned to a tag"
+    )
     assert ":latest" not in dockerfile
     assert not offenders, offenders
 
@@ -220,7 +235,9 @@ def test_shell_scripts_are_executable_and_have_a_shebang():
     assert scripts, "no shell scripts found"
     for script in scripts:
         assert script.stat().st_mode & 0o111, "%s is not executable" % script.name
-        assert script.read_text().startswith("#!/usr/bin/env bash"), "%s has no bash shebang" % script.name
+        assert script.read_text().startswith("#!/usr/bin/env bash"), (
+            "%s has no bash shebang" % script.name
+        )
 
 
 def test_python_entry_points_have_a_shebang_and_no_interactive_only_constructs():

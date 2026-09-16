@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pytest
 import yaml
@@ -12,7 +12,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-import invariants  # noqa: E402  (path tweak above is required)
+import invariants
 
 
 def _load(rendered: str) -> List[Dict[str, Any]]:
@@ -40,9 +40,7 @@ def prod_docs() -> List[Dict[str, Any]]:
 
 @pytest.fixture(scope="session")
 def helm_default_docs() -> List[Dict[str, Any]]:
-    return _load(
-        invariants.helm_template(REPO_ROOT / "chart" / "values.yaml", "k8s-sre-lab")
-    )
+    return _load(invariants.helm_template(REPO_ROOT / "chart" / "values.yaml", "k8s-sre-lab"))
 
 
 @pytest.fixture(scope="session")
@@ -59,11 +57,17 @@ def helm_prod_docs() -> List[Dict[str, Any]]:
     )
 
 
-def find(docs: List[Dict[str, Any]], kind: str, name: str = None) -> Dict[str, Any]:
+def find(docs: List[Dict[str, Any]], kind: str, name: Optional[str] = None) -> Dict[str, Any]:
     """Return the single document of a kind (optionally by name)."""
     matches = [
-        doc for doc in docs if doc.get("kind") == kind and (name is None or doc["metadata"]["name"] == name)
+        doc
+        for doc in docs
+        if doc.get("kind") == kind and (name is None or doc["metadata"]["name"] == name)
     ]
     assert matches, "no %s named %r in the rendered set" % (kind, name)
-    assert len(matches) == 1, "expected exactly one %s named %r, found %d" % (kind, name, len(matches))
+    assert len(matches) == 1, "expected exactly one %s named %r, found %d" % (
+        kind,
+        name,
+        len(matches),
+    )
     return matches[0]
