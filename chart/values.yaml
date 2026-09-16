@@ -94,8 +94,12 @@ service:
   targetPort: http
 
 podDisruptionBudget:
-  # Only meaningful with replicaCount > 1; overlays with a single replica disable it.
-  enabled: true
+  # Only meaningful with replicaCount > 1. The default values describe the dev shape
+  # (replicaCount: 1) and with a single replica any minAvailable >= 1 blocks every node
+  # drain - which is exactly what kube-linter's pdb-min-available check reports. So the
+  # PDB is off in the default and in values-dev.yaml; values-prod.yaml enables it with
+  # minAvailable: 2 for 3 replicas.
+  enabled: false
   minAvailable: 1
   unhealthyPodEvictionPolicy: AlwaysAllow
 
