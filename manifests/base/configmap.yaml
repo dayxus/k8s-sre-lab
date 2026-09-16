@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-api-config
+  namespace: k8s-sre-lab
+  labels:
+    app.kubernetes.io/name: demo-api
+    app.kubernetes.io/instance: k8s-sre-lab
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: k8s-sre-lab
+    app.kubernetes.io/managed-by: kustomize
+data:
+  PORT: "8080"
+  # Readiness only flips after this "warm the caches" delay, which is why the
+  # deployment also carries a startupProbe: without it the liveness probe would
+  # kill the container during a slow start.
+  READY_DELAY_SECONDS: "3"
+  # Upper bound on how long in-flight requests are allowed to finish after SIGTERM.
+  # Must stay below terminationGracePeriodSeconds (45s) so the process exits on its
+  # own terms instead of being SIGKILLed.
+  SHUTDOWN_GRACE_SECONDS: "30"
+  ACCESS_LOG: "true"
+  PYTHONDONTWRITEBYTECODE: "1"
+  # Lets the kind E2E and the chaos experiments flip readiness on one pod without a
+  # rollout. Off by default in the app; explicitly on here because this is a lab.
+  ENABLE_CHAOS_SWITCH: "true"

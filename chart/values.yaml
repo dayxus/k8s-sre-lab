@@ -1,0 +1,166 @@
+# Defaults mirror manifests/base, i.e. the conservative single-replica shape.
+# values-dev.yaml and values-prod.yaml mirror manifests/overlays/dev and /prod.
+#
+# Sizing and scaling knobs live in the values files, but the reliability posture
+# (probes, graceful shutdown, security contexts, network policy, maxUnavailable=0)
+# is expressed in the templates so an overlay cannot quietly disable it by omission.
+
+partOf: k8s-sre-lab
+
+namespace:
+  # Create the Namespace object; set to false when it is managed elsewhere.
+  create: true
+  name: k8s-sre-lab
+  # Restricted Pod Security Standard is enforced, not merely warned about.
+  podSecurityEnforce: restricted
+
+image:
+  repository: k8s-sre-lab/demo-api
+  # Never `latest`: a rollout must be able to state exactly what it runs.
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+config:
+  port: "8080"
+  readyDelaySeconds: "3"
+  shutdownGraceSeconds: "30"
+  accessLog: "true"
+  failReady: "false"
+  # Lets the kind E2E and the chaos experiments flip readiness on one pod without
+  # waiting for a rollout.
+  chaosSwitch: "true"
+
+rollout:
+  # Capacity is never reduced while a new ReplicaSet comes up.
+  maxUnavailable: 0
+  maxSurge: 1
+  progressDeadlineSeconds: 120
+  revisionHistoryLimit: 5
+
+# Must exceed preStopSleepSeconds + config.shutdownGraceSeconds, otherwise the kubelet
+# SIGKILLs the process mid-drain.
+terminationGracePeriodSeconds: 45
+preStopSleepSeconds: 10
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 192Mi
+
+probes:
+  # Surfaces a slow start instead of loosening liveness for everyone.
+  startup:
+    enabled: true
+    path: /healthz
+    periodSeconds: 2
+    timeoutSeconds: 1
+    failureThreshold: 15
+  readiness:
+    path: /readyz
+    periodSeconds: 5
+    timeoutSeconds: 2
+    successThreshold: 1
+    failureThreshold: 2
+  liveness:
+    path: /healthz
+    periodSeconds: 10
+    timeoutSeconds: 2
+    successThreshold: 1
+    failureThreshold: 3
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: http
+
+podDisruptionBudget:
+  # Only meaningful with replicaCount > 1; overlays with a single replica disable it.
+  enabled: true
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+
+autoscaling:
+  enabled: false
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      selectPolicy: Max
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+        - type: Pods
+          value: 2
+          periodSeconds: 30
+    scaleDown:
+      # Conservative on purpose: a short spike must not cause a scale-in that has to
+      # be undone 30 seconds later.
+      stabilizationWindowSeconds: 600
+      selectPolicy: Min
+      policies:
+        - type: Percent
+          value: 25
+          periodSeconds: 60
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+
+priorityClass:
+  create: true
+  name: k8s-sre-lab-critical
+  value: 100000
+  preemptionPolicy: PreemptLowerPriority
+
+networkPolicy:
+  enabled: true
+  # Egress is restricted to DNS in this namespace; nothing else leaves the pod.
+  dnsNamespace: kube-system
+  # The kubelet originates probe and `kubectl port-forward` traffic from the node
+  # network; in the kind lab that is the pod CIDR below.
+  nodeCIDR: 172.18.0.0/16
+
+topologySpread:
+  enabled: true
+  maxSkew: 1
+  topologyKey: kubernetes.io/hostname
+  # Soft: hard spreading needs at least one node per replica.
+  whenUnsatisfiable: ScheduleAnyway
+
+antiAffinity:
+  enabled: true
+  weight: 100
+  topologyKey: kubernetes.io/hostname
+
+serviceMonitor:
+  enabled: true
+  path: /metrics
+  interval: 15s
+  scrapeTimeout: 10s
+
+prometheusRule:
+  enabled: true
+
+nameOverride: ""

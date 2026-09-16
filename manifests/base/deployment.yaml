@@ -1,0 +1,141 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-api
+  namespace: k8s-sre-lab
+  labels:
+    app.kubernetes.io/name: demo-api
+    app.kubernetes.io/instance: k8s-sre-lab
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: k8s-sre-lab
+    app.kubernetes.io/managed-by: kustomize
+  annotations:
+    # Evidence that the reliability contract below is intentional, not cargo cult.
+    sre.lab/reliability-contract: "docs/reliability-patterns.md"
+spec:
+  # The overlays own the replica count: dev=1, prod=3 (HPA can grow it to 10).
+  replicas: 1
+  revisionHistoryLimit: 5
+  # A rollout that cannot become healthy must fail loudly after two minutes instead
+  # of hanging until someone notices a dashboard.
+  progressDeadlineSeconds: 120
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Capacity is never reduced during a rollout: with maxUnavailable=0 and enough
+      # replicas plus a PDB, a node drain and a deploy cannot evict the whole service
+      # at the same time. See "Why maxUnavailable: 0" in the README.
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: demo-api
+      app.kubernetes.io/instance: k8s-sre-lab
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: demo-api
+        app.kubernetes.io/instance: k8s-sre-lab
+        app.kubernetes.io/version: "1.0.0"
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: k8s-sre-lab
+        app.kubernetes.io/managed-by: kustomize
+    spec:
+      # The workload talks to nothing that needs the API server.
+      automountServiceAccountToken: false
+      # 45s > SHUTDOWN_GRACE_SECONDS (30s) + the 10s preStop sleep, so the drain
+      # always finishes before the kubelet sends SIGKILL.
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      # Protects the API pods from being evicted first by cluster pressure.
+      priorityClassName: k8s-sre-lab-critical
+      containers:
+        - name: api
+          image: k8s-sre-lab/demo-api:1.0.0
+          # Fixed tag, never `latest`: a rollout has to be able to say what it runs.
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: demo-api-config
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            # The readiness-failure switch used by the kind E2E and by chaos/README.md.
+            - name: FAIL_READY
+              value: "false"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 192Mi
+          # startupProbe: the app needs a few seconds to become ready; this gives it
+          # up to 30s without loosening the liveness probe.
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            timeoutSeconds: 1
+            failureThreshold: 15
+          # readinessProbe answers "should this pod receive traffic?", not
+          # "is the process alive?" - that separation is what makes zero-downtime
+          # rollouts and clean endpoint removal possible.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            successThreshold: 1
+            failureThreshold: 2
+          # livenessProbe restarts a wedged process; it is intentionally slower and
+          # more forgiving than the readiness probe so a traffic spike cannot cause
+          # a restart loop.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            successThreshold: 1
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                # The endpoint controller and the kube-proxy rules need time to catch
+                # up with the termination; without this sleep the pod can be gone
+                # before the clients learn about it.
+                command: ["/bin/sh", "-c", "sleep 10"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            # The root filesystem is read-only; the app gets a small writable scratch
+            # space and nothing else.
+            - name: scratch
+              mountPath: /tmp
+      volumes:
+        - name: scratch
+          emptyDir:
+            sizeLimit: 32Mi

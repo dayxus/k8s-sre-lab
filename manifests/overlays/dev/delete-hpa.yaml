@@ -1,0 +1,7 @@
+# Overlay patch (partial HorizontalPodAutoscaler, applied from kustomization.yaml).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: demo-api
+  namespace: k8s-sre-lab
+$patch: delete

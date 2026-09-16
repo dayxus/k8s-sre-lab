@@ -1,0 +1,41 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "k8s-sre-lab.name" . }}
+  namespace: {{ include "k8s-sre-lab.namespace" . }}
+  labels:
+    {{- include "k8s-sre-lab.labels" (dict "ctx" . "component" "network") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "k8s-sre-lab.selectorLabels" . | nindent 6 }}
+  # Both directions listed => default deny for everything not allowed below.
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ include "k8s-sre-lab.namespace" . }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.config.port | int }}
+    - from:
+        - ipBlock:
+            cidr: {{ .Values.networkPolicy.nodeCIDR }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.config.port | int }}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.dnsNamespace }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}

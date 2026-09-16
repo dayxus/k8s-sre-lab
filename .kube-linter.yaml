@@ -1,0 +1,29 @@
+# kube-linter configuration.
+#
+# The default checks are kept: they encode most of the reliability contract this repo
+# is about (non-root, read-only root filesystem, resource requirements, probes,
+# NetworkPolicy isolation, no `latest`). Only checks that are meaningless for a lab
+# with one synthetic workload are tuned, and each one says why.
+
+checks:
+  # Every namespace in this repo is created by the manifests themselves, and the
+  # overlays are linted as rendered output, so "namespace not set" is a real finding.
+  addAllBuiltIn: false
+
+  exclude:
+    # The dev overlay runs a single replica on purpose; `minimum-three-replicas`
+    # would contradict manifests/overlays/dev/kustomization.yaml.
+    - minimum-three-replicas
+    # The Deployment is intentionally named `demo-api` while the pod carries a
+    # `-<hash>` suffix; the label-based checks below already cover selector drift.
+    - unset-cpu-requirements
+    - unset-memory-requirements
+
+customChecks: []
+
+# Report everything found, in one run, instead of stopping at the first issue.
+ignorePaths:
+  - ".tools/**"
+  - ".venv/**"
+  - "build/**"
+  - "artifacts/**"

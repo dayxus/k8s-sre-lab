@@ -1,0 +1,32 @@
+apiVersion: v2
+name: k8s-sre-lab
+description: >-
+  Demo API for the k8s-sre-lab reliability lab: probes, graceful shutdown,
+  PodDisruptionBudget, HPA, NetworkPolicy and SLO burn-rate alerts.
+type: application
+
+# Chart version tracks the packaging; appVersion tracks the image built from app/.
+version: 1.0.0
+appVersion: "1.0.0"
+
+kubeVersion: ">=1.27.0-0"
+
+home: https://github.com/dayxus/k8s-sre-lab
+sources:
+  - https://github.com/dayxus/k8s-sre-lab
+
+maintainers:
+  - name: Jeferson Melo
+    url: https://github.com/dayxus
+
+keywords:
+  - sre
+  - kubernetes
+  - reliability
+  - poddisruptionbudget
+  - horizontalpodautoscaler
+  - probes
+  - networkpolicy
+
+annotations:
+  category: Infrastructure

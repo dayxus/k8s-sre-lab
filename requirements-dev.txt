@@ -1,0 +1,9 @@
+# Test/lint dependencies. The demo API itself is standard-library only: nothing in
+# app/ needs an entry here, and tests/test_app.py asserts the metrics/HTTP behaviour
+# without importing anything outside the stdlib.
+#
+# Pinned on purpose: an unpinned linter turns a green build red for reasons that have
+# nothing to do with this repository.
+pytest==8.4.2
+PyYAML==6.0.2
+ruff==0.13.2

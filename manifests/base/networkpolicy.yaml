@@ -1,0 +1,54 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: demo-api
+  namespace: k8s-sre-lab
+  labels:
+    app.kubernetes.io/name: demo-api
+    app.kubernetes.io/instance: k8s-sre-lab
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: network
+    app.kubernetes.io/part-of: k8s-sre-lab
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: demo-api
+      app.kubernetes.io/instance: k8s-sre-lab
+  # Both directions are listed, which makes this a default-deny for everything that
+  # is not explicitly allowed below.
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # In-cluster clients: the Service port is what callers use, 8080 is the container.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: k8s-sre-lab
+      ports:
+        - protocol: TCP
+          port: 8080
+    # The kubelet originates the probe connections and the port-forward relay used by
+    # an on-call engineer running `kubectl port-forward`. In the kind lab that
+    # traffic comes from the node network, so the pod CIDR is allowed explicitly
+    # rather than by dropping the default-deny posture for the API port.
+    - from:
+        - ipBlock:
+            cidr: 172.18.0.0/16
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # DNS only. The app has no other outbound dependency, so nothing else is allowed
+    # out of the pod - a compromised container cannot reach the metadata service or
+    # the rest of the cluster.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

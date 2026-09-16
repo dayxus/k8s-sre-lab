@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "k8s-sre-lab.name" . }}-config
+  namespace: {{ include "k8s-sre-lab.namespace" . }}
+  labels:
+    {{- include "k8s-sre-lab.labels" (dict "ctx" . "component" "api") | nindent 4 }}
+data:
+  PORT: {{ .Values.config.port | quote }}
+  READY_DELAY_SECONDS: {{ .Values.config.readyDelaySeconds | quote }}
+  SHUTDOWN_GRACE_SECONDS: {{ .Values.config.shutdownGraceSeconds | quote }}
+  ACCESS_LOG: {{ .Values.config.accessLog | quote }}
+  PYTHONDONTWRITEBYTECODE: "1"
+  ENABLE_CHAOS_SWITCH: {{ .Values.config.chaosSwitch | quote }}

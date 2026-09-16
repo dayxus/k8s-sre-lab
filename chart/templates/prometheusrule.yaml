@@ -1,0 +1,142 @@
+{{- if .Values.prometheusRule.enabled }}
+{{- $ns := include "k8s-sre-lab.namespace" . -}}
+{{- $name := include "k8s-sre-lab.name" . -}}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "k8s-sre-lab.labels" (dict "ctx" . "component" "alerting") | nindent 4 }}
+spec:
+  groups:
+    # SLO: 99.9% availability over 30 days. The SLI is computed from metrics the app
+    # really exposes; the namespace matcher is a prefix regex so the same rules work
+    # in whichever overlay namespace the chart is installed into.
+    - name: {{ $name }}.slo.availability
+      interval: 30s
+      rules:
+        - record: demo_api:sli_availability:ratio_rate5m
+          expr: |
+            1 - (
+              sum(rate(demo_api_ready_failures_total[5m]))
+              /
+              clamp_min(sum(rate(demo_api_requests_total{path="/readyz",method="GET"}[5m])), 0.001)
+            )
+        - record: demo_api:sli_availability:ratio_rate1h
+          expr: |
+            1 - (
+              sum(rate(demo_api_ready_failures_total[1h]))
+              /
+              clamp_min(sum(rate(demo_api_requests_total{path="/readyz",method="GET"}[1h])), 0.001)
+            )
+        - record: demo_api:sli_availability:ratio_rate30m
+          expr: |
+            1 - (
+              sum(rate(demo_api_ready_failures_total[30m]))
+              /
+              clamp_min(sum(rate(demo_api_requests_total{path="/readyz",method="GET"}[30m])), 0.001)
+            )
+        # Burn rate 14.4x on a 0.1% budget => exhausted in ~2 days. Both the long and
+        # the short window must agree, which is what stops a scrape gap from paging.
+        - alert: DemoApiErrorBudgetBurnFast
+          expr: |
+            (demo_api:sli_availability:ratio_rate1h < 0.9856)
+            and
+            (demo_api:sli_availability:ratio_rate5m < 0.9856)
+          for: 2m
+          labels:
+            severity: critical
+            slo: availability
+            burn_rate: "14.4"
+          annotations:
+            summary: "demo-api is burning the 30d availability budget 14.4x faster than allowed"
+            description: >-
+              At this rate the 0.1% error budget is gone in roughly 2 days. Check readyz
+              failures, pod restarts, and whether the PodDisruptionBudget is blocking a
+              rollout before reaching for a rollback.
+            runbook_url: "https://github.com/dayxus/k8s-sre-lab/blob/main/docs/reliability-patterns.md"
+        # Burn rate 6x => ~5 days. Ticket, not page.
+        - alert: DemoApiErrorBudgetBurnSlow
+          expr: |
+            (demo_api:sli_availability:ratio_rate30m < 0.994)
+            and
+            (demo_api:sli_availability:ratio_rate5m < 0.994)
+          for: 30m
+          labels:
+            severity: warning
+            slo: availability
+            burn_rate: "6"
+          annotations:
+            summary: "demo-api is burning the 30d availability budget 6x faster than allowed"
+            description: >-
+              At this rate the budget runs out in roughly 5 days. Compare the last two
+              rollouts against the readyz failure timeline.
+            runbook_url: "https://github.com/dayxus/k8s-sre-lab/blob/main/docs/reliability-patterns.md"
+
+    # Platform symptoms: the failures Kubernetes produces on its own.
+    - name: {{ $name }}.platform-symptoms
+      interval: 30s
+      rules:
+        - alert: DemoApiNoReadyEndpoints
+          expr: |
+            kube_deployment_status_replicas_available{namespace=~"{{ $ns }}",deployment="{{ $name }}"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "demo-api has no available replicas"
+            description: >-
+              Every client is failing right now. Read pod events first: FailedScheduling
+              and ImagePullBackOff look nothing alike in the logs.
+        - alert: DemoApiPodCrashLooping
+          expr: |
+            max_over_time(kube_pod_container_status_restarts_total{namespace=~"{{ $ns }}",container="api"}[10m])
+            -
+            min_over_time(kube_pod_container_status_restarts_total{namespace=~"{{ $ns }}",container="api"}[10m]) > 3
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "demo-api container restarted more than 3 times in 10 minutes"
+            description: >-
+              A crash loop usually means the liveness probe is tighter than the real
+              start time, or the process is exiting on a dependency.
+        - alert: DemoApiRolloutStuck
+          expr: |
+            kube_deployment_spec_replicas{namespace=~"{{ $ns }}",deployment="{{ $name }}"}
+            >
+            kube_deployment_status_replicas_updated{namespace=~"{{ $ns }}",deployment="{{ $name }}"}
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "demo-api rollout has not progressed in 10 minutes"
+            description: >-
+              With maxUnavailable=0 a stuck rollout never reduces capacity, but it also
+              never finishes. Check readiness failures on the new ReplicaSet.
+        - alert: DemoApiPdbDisruptionsBlocked
+          expr: |
+            kube_poddisruptionbudget_status_pod_disruptions_allowed{namespace=~"{{ $ns }}",poddisruptionbudget="{{ $name }}"} < 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "demo-api PDB is blocking every voluntary disruption"
+            description: >-
+              Node drains and cluster upgrades will hang here. Scale up, or accept the
+              disruption window explicitly - never delete the PDB silently.
+        - alert: DemoApiHpaAtMaxReplicas
+          expr: |
+            kube_horizontalpodautoscaler_status_current_replicas{namespace=~"{{ $ns }}",horizontalpodautoscaler="{{ $name }}"}
+            >=
+            kube_horizontalpodautoscaler_spec_max_replicas{namespace=~"{{ $ns }}",horizontalpodautoscaler="{{ $name }}"}
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "demo-api HPA has been pinned at maxReplicas for 15 minutes"
+            description: >-
+              Autoscaling has stopped absorbing load and latency is next. Raise
+              maxReplicas, or find out why the added capacity is not helping.
+{{- end }}

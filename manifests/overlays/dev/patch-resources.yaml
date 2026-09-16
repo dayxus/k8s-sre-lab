@@ -1,0 +1,19 @@
+# Overlay patch (partial Deployment, applied from kustomization.yaml).
+# Development sizing: enough to run, not enough to hide a request/limit mismatch.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-api
+  namespace: k8s-sre-lab
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          resources:
+            requests:
+              cpu: 25m
+              memory: 48Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi

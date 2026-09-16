@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "k8s-sre-lab.name" . }}
+  namespace: {{ include "k8s-sre-lab.namespace" . }}
+  labels:
+    {{- include "k8s-sre-lab.labels" (dict "ctx" . "component" "api") | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "k8s-sre-lab.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: {{ .Values.service.targetPort }}
+      port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP

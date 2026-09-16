@@ -1,0 +1,7 @@
+# Overlay patch (partial PodDisruptionBudget, applied from kustomization.yaml).
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: demo-api
+  namespace: k8s-sre-lab
+$patch: delete

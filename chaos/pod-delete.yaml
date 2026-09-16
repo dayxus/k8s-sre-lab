@@ -1,0 +1,34 @@
+# Hypothesis: the Deployment survives the abrupt loss of one replica with no failed
+# requests, because readiness gating plus the PodDisruptionBudget keep the Service
+# endpoints populated while the replacement starts.
+#
+# This is the declarative twin of the step the kind E2E runs with `kubectl delete pod`.
+# Chaos Mesh is used for it because a one-off `kubectl delete` proves the controller
+# reacts; a replica-churn experiment proves it keeps reacting.
+#
+# Apply:   kubectl apply -f chaos/pod-delete.yaml
+# Revert:  kubectl delete -f chaos/pod-delete.yaml
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: demo-api-pod-kill
+  namespace: k8s-sre-lab-prod
+  labels:
+    app.kubernetes.io/name: demo-api
+    app.kubernetes.io/instance: k8s-sre-lab
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: chaos
+    app.kubernetes.io/part-of: k8s-sre-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  action: pod-kill
+  mode: one
+  # 15s of grace: the preStop sleep (10s) plus part of the drain. Lowering this below
+  # the preStop sleep would measure SIGKILL behaviour instead of the shutdown contract.
+  gracePeriod: 15
+  selector:
+    namespaces:
+      - k8s-sre-lab-prod
+    labelSelectors:
+      app.kubernetes.io/name: demo-api
+      app.kubernetes.io/instance: k8s-sre-lab

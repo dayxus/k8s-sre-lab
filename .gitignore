@@ -1,0 +1,24 @@
+# Downloaded validation binaries (scripts/install-tools.sh)
+.tools/
+
+# Rendered manifests produced by scripts/validate.sh and scripts/e2e-kind.sh
+build/
+
+# Evidence captured by the kind E2E
+artifacts/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Logs and scratch output
+*.log
+
+# macOS
+.DS_Store

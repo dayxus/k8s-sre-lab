@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Base = the reliability contract (probes, graceful shutdown, disruption budget,
+# autoscaling, network policy, SLO alerts). Overlays change size, never posture.
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - priorityclass.yaml
+  - deployment.yaml
+  - service.yaml
+  - pdb.yaml
+  - hpa.yaml
+  - networkpolicy.yaml
+  - servicemonitor.yaml
+  - prometheusrule.yaml
+
+patches:
+  # Anti-affinity + topology spreading live in their own file so the scheduling
+  # intent is reviewable on its own (see docs/reliability-patterns.md).
+  - path: topology-spread.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: k8s-sre-lab
+    includeSelectors: false

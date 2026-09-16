@@ -1,0 +1,37 @@
+# Hypothesis: one saturated replica does not take the service down. Readiness fails on
+# the throttled pod, the endpoint controller removes it, and the other replicas keep
+# answering - the HPA alarm that follows is the signal, not an outage.
+#
+# 250m CPU limit (prod overlay) with 2 stress-ng workers at 80% load means the stressor
+# is throttled by the cgroup, which is the point: the probe must fail on latency, not on
+# memory pressure.
+#
+# Apply:   kubectl apply -f chaos/cpu-stress.yaml
+# Revert:  kubectl delete -f chaos/cpu-stress.yaml
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: demo-api-cpu-stress
+  namespace: k8s-sre-lab-prod
+  labels:
+    app.kubernetes.io/name: demo-api
+    app.kubernetes.io/instance: k8s-sre-lab
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: chaos
+    app.kubernetes.io/part-of: k8s-sre-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  mode: one
+  duration: "5m"
+  stressors:
+    cpu:
+      workers: 2
+      # 80% of the cgroup quota, leaving just enough headroom that the pod dies of
+      # latency rather than of a hard OOM/throttle cliff.
+      load: 80
+  selector:
+    namespaces:
+      - k8s-sre-lab-prod
+    labelSelectors:
+      app.kubernetes.io/name: demo-api
+      app.kubernetes.io/instance: k8s-sre-lab

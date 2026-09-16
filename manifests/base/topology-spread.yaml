@@ -1,0 +1,45 @@
+# Strategic-merge patch (not a standalone object).
+#
+# It is listed under `patches:` in manifests/base/kustomization.yaml, which is why it
+# only carries the Deployment identity plus the fragment it adds. Rendering the base
+# or an overlay is what produces a complete object.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-api
+  namespace: k8s-sre-lab
+spec:
+  template:
+    spec:
+      # Spread replicas across nodes so a single node failure cannot take the whole
+      # service down with it.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          # Soft on purpose: `DoNotSchedule` with 3 replicas on a 2-worker cluster
+          # would leave a pod Pending forever. Spreading is desirable, being unable
+          # to schedule is not.
+          whenUnsatisfiable: ScheduleAnyway
+          # The selector uses the two labels that both delivery paths emit with the
+          # same value (instance + component). `name` cannot be used here: kustomize
+          # names the object `demo-api` while Helm prefixes the chart name, and
+          # tests/test_chart.py compares this block between the two renderings
+          # field by field.
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/instance: k8s-sre-lab
+              app.kubernetes.io/component: api
+      affinity:
+        podAntiAffinity:
+          # Preferred, not required: the hard form (`requiredDuringScheduling...`)
+          # turns a cluster with fewer schedulable nodes than replicas into an
+          # outage of its own.
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                # Same selector as the topology spread above, for the same reason.
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/instance: k8s-sre-lab
+                    app.kubernetes.io/component: api

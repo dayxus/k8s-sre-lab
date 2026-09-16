@@ -1,0 +1,10 @@
+# Overlay patch (partial Deployment, applied from kustomization.yaml).
+# 3 replicas is the floor that keeps the service available while the
+# PodDisruptionBudget allows exactly one voluntary eviction at a time.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-api
+  namespace: k8s-sre-lab
+spec:
+  replicas: 3

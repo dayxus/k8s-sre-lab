@@ -1,0 +1,12 @@
+{{- if .Values.priorityClass.create }}
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ .Values.priorityClass.name }}
+  labels:
+    {{- include "k8s-sre-lab.labels" (dict "ctx" . "component" "scheduling") | nindent 4 }}
+value: {{ .Values.priorityClass.value }}
+globalDefault: false
+preemptionPolicy: {{ .Values.priorityClass.preemptionPolicy }}
+description: "User-facing demo API of the k8s-sre-lab reliability lab."
+{{- end }}

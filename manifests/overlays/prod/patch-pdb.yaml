@@ -1,0 +1,11 @@
+# Overlay patch (partial PodDisruptionBudget, applied from kustomization.yaml).
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: demo-api
+  namespace: k8s-sre-lab
+spec:
+  # With 3 replicas, at most one may be voluntarily evicted at a time. Combined with
+  # the deployment's maxUnavailable=0 + maxSurge=1 this is what makes a node drain and
+  # a rolling deploy unable to take the service to zero at the same time.
+  minAvailable: 2

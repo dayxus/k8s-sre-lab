@@ -1,0 +1,8 @@
+# Overlay patch (partial Deployment, applied from kustomization.yaml).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-api
+  namespace: k8s-sre-lab
+spec:
+  replicas: 1

@@ -1,0 +1,28 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: demo-api
+  namespace: k8s-sre-lab
+  labels:
+    app.kubernetes.io/name: demo-api
+    app.kubernetes.io/instance: k8s-sre-lab
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/part-of: k8s-sre-lab
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  # Matches the Service labels, not the pod labels: the Service is what carries the
+  # named scrape port. No namespaceSelector is declared on purpose - the default is
+  # "same namespace as this ServiceMonitor", which survives both overlays.
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: demo-api
+      app.kubernetes.io/instance: k8s-sre-lab
+  endpoints:
+    # Named port on the Service, so a port renumber never silently breaks scraping.
+    - port: http
+      path: /metrics
+      scheme: http
+      interval: 15s
+      scrapeTimeout: 10s
+      honorLabels: false

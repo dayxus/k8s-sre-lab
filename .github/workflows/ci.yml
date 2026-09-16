@@ -1,0 +1,119 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Export pinned versions
+        run: grep -E '^[A-Z0-9_]+=' tools/versions.env >> "$GITHUB_ENV"
+
+      - name: ruff check
+        run: ruff check .
+
+      - name: ruff format --check
+        run: ruff format --check .
+
+      - name: Install shellcheck (pinned release, no distro package)
+        run: |
+          curl -fsSLo /tmp/shellcheck.tar.xz \
+            "https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
+          tar -xJf /tmp/shellcheck.tar.xz -C /tmp
+          sudo install -m 0755 "/tmp/shellcheck-${SHELLCHECK_VERSION}/shellcheck" /usr/local/bin/shellcheck
+          shellcheck --version
+
+      - name: shellcheck
+        run: shellcheck --severity=warning scripts/*.sh
+
+      - name: docs/versions.md matches tools/versions.env
+        run: python scripts/update_versions.py --check
+
+  manifests:
+    name: manifests (python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Install pinned validation tooling (official release binaries)
+        run: scripts/install-tools.sh all
+
+      - name: Validate manifests and chart (kustomize, helm, kubeconform, kube-linter)
+        run: scripts/validate.sh
+
+      - name: pytest (reliability invariants, chart parity, app behaviour)
+        run: make test
+
+  e2e-kind:
+    name: e2e-kind
+    runs-on: ubuntu-latest
+    needs: [manifests]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Export pinned versions
+        run: grep -E '^[A-Z0-9_]+=' tools/versions.env >> "$GITHUB_ENV"
+
+      - name: Install kind (official release binary)
+        run: |
+          curl -fsSLo /tmp/kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
+          chmod +x /tmp/kind
+          sudo install -m 0755 /tmp/kind /usr/local/bin/kind
+          kind version
+
+      - name: Install kubectl matching the pinned Kubernetes version
+        run: |
+          curl -fsSLo /tmp/kubectl "https://dl.k8s.io/release/${KUBERNETES_VERSION}/bin/linux/amd64/kubectl"
+          chmod +x /tmp/kubectl
+          sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
+          kubectl version --client
+
+      - name: Run the kind E2E
+        run: scripts/e2e-kind.sh
+
+      - name: Collect evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-kind-evidence
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 30

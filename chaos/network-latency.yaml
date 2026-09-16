@@ -1,0 +1,49 @@
+# Hypothesis: the readiness probe is the right knob for a slow dependency. With 300ms
+# of added latency and a 2s probe timeout the pods stay Ready and the latency shows up
+# only in the curl timing - which is the intended behaviour for a probe that answers
+# "can this pod serve?", not "is this pod fast?".
+#
+# The experiment exists to be a false positive test: if the readiness probe fires here,
+# it is tuned to the wrong signal, and a dependency slowdown would cascade into a
+# restart loop.
+#
+# Netem is installed on the selected pods and `direction: both` applies it to traffic
+# in and out, so probe traffic and client traffic see the same delay.
+#
+# Apply:   kubectl apply -f chaos/network-latency.yaml
+# Revert:  kubectl delete -f chaos/network-latency.yaml
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: demo-api-network-latency
+  namespace: k8s-sre-lab-prod
+  labels:
+    app.kubernetes.io/name: demo-api
+    app.kubernetes.io/instance: k8s-sre-lab
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: chaos
+    app.kubernetes.io/part-of: k8s-sre-lab
+    app.kubernetes.io/managed-by: kubectl
+spec:
+  action: delay
+  mode: all
+  duration: "5m"
+  direction: both
+  delay:
+    latency: "300ms"
+    jitter: "50ms"
+    correlation: "50"
+  selector:
+    namespaces:
+      - k8s-sre-lab-prod
+    labelSelectors:
+      app.kubernetes.io/name: demo-api
+      app.kubernetes.io/instance: k8s-sre-lab
+  target:
+    mode: all
+    selector:
+      namespaces:
+        - k8s-sre-lab-prod
+      labelSelectors:
+        app.kubernetes.io/name: demo-api
+        app.kubernetes.io/instance: k8s-sre-lab

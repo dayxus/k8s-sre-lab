@@ -1,0 +1,12 @@
+# kind cluster for the E2E job: one control-plane and two workers, so the
+# topologySpreadConstraints and the podAntiAffinity in manifests/base have more than
+# one node to spread across. Two schedulable nodes is the smallest cluster that can
+# show spreading at all; it is also why the spreading rules are soft (ScheduleAnyway)
+# rather than required - 3 replicas do not fit one-per-node here.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: k8s-sre-lab
+nodes:
+  - role: control-plane
+  - role: worker
+  - role: worker

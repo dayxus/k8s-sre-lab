@@ -1,0 +1,28 @@
+# prod: three replicas, real requests/limits, HPA 3 -> 10, PDB minAvailable=2.
+# Mirrors manifests/overlays/prod - the same overlay the kind E2E applies.
+partOf: k8s-sre-lab
+
+namespace:
+  create: true
+  name: k8s-sre-lab-prod
+  podSecurityEnforce: restricted
+
+replicaCount: 3
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70

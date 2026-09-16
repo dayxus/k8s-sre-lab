@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# prod: three replicas, real requests/limits, HPA 3->10, PDB minAvailable=2.
+# This is the overlay the kind E2E applies (`kubectl apply -k manifests/overlays/prod`).
+
+namespace: k8s-sre-lab-prod
+
+resources:
+  - ../../base
+
+patches:
+  - path: patch-replicas.yaml
+  - path: patch-resources.yaml
+  - path: patch-pdb.yaml

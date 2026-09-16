@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-api
+  namespace: k8s-sre-lab
+  labels:
+    app.kubernetes.io/name: demo-api
+    app.kubernetes.io/instance: k8s-sre-lab
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: k8s-sre-lab
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: demo-api
+    app.kubernetes.io/instance: k8s-sre-lab
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

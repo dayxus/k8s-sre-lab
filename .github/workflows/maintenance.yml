@@ -1,0 +1,51 @@
+name: maintenance
+
+on:
+  # Mondays at 06:17 UTC. Weekly is the right cadence for this job: the upstream
+  # Kubernetes release train moves in weeks, and the audit is about noticing a
+  # deprecation before it becomes an incident, not about reacting within the hour.
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: maintenance
+  cancel-in-progress: false
+
+jobs:
+  weekly-audit:
+    name: weekly audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # A branch protection rule or a protected default branch would need a token
+          # with bypass rights; the default token is enough for an unprotected main.
+          persist-credentials: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Install pinned validation tooling
+        run: scripts/install-tools.sh all
+
+      - name: Configure the commit identity
+        run: |
+          git config user.name "Jeferson Melo"
+          git config user.email "161839842+dayxus@users.noreply.github.com"
+
+      - name: Refresh pins, re-validate, write reports/weekly-audit.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: scripts/maintenance.sh

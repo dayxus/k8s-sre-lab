@@ -1,0 +1,21 @@
+# Overlay patch (partial Deployment, applied from kustomization.yaml).
+# Production sizing: the request is what the scheduler and the HPA math use, the limit
+# is what the kubelet throttles/OOMs on. Requests are set near steady-state usage so a
+# 70% CPU target means something.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-api
+  namespace: k8s-sre-lab
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi

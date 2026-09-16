@@ -1,0 +1,24 @@
+# dev: one replica, small footprint, no autoscaler, no disruption budget.
+# Mirrors manifests/overlays/dev. The reliability posture in templates/ is untouched.
+partOf: k8s-sre-lab
+
+namespace:
+  create: true
+  name: k8s-sre-lab-dev
+  podSecurityEnforce: restricted
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 48Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+
+podDisruptionBudget:
+  enabled: false
+
+autoscaling:
+  enabled: false

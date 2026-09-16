@@ -1,0 +1,17 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: k8s-sre-lab-critical
+  labels:
+    app.kubernetes.io/name: demo-api
+    app.kubernetes.io/instance: k8s-sre-lab
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: scheduling
+    app.kubernetes.io/part-of: k8s-sre-lab
+    app.kubernetes.io/managed-by: kustomize
+# Well below the reserved system-* classes and above ordinary batch work, so API pods
+# win against best-effort jobs but never against cluster-critical components.
+value: 100000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: "User-facing demo API of the k8s-sre-lab reliability lab."

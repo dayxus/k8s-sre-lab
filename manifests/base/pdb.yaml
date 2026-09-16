@@ -1,0 +1,23 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: demo-api
+  namespace: k8s-sre-lab
+  labels:
+    app.kubernetes.io/name: demo-api
+    app.kubernetes.io/instance: k8s-sre-lab
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: k8s-sre-lab
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  # Overlays with more than one replica raise this (prod: minAvailable=2). The base
+  # value keeps a single-replica deploy from being disrupted to zero.
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: demo-api
+      app.kubernetes.io/instance: k8s-sre-lab
+  # A pod that is not healthy cannot be evicted *and* cannot block a node drain
+  # forever - those two failure modes are the reason this field exists.
+  unhealthyPodEvictionPolicy: AlwaysAllow

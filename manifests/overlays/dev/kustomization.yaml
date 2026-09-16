@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# dev: one replica, tiny footprint, no autoscaler, no disruption budget.
+# The point of the overlay is that it is small, not that it is unsafe: every probe,
+# resource request/limit, security context and the NetworkPolicy still come from base.
+
+namespace: k8s-sre-lab-dev
+
+resources:
+  - ../../base
+
+patches:
+  - path: patch-replicas.yaml
+  - path: patch-resources.yaml
+  # Single replica => a PodDisruptionBudget could only be minAvailable=0 or 1, and
+  # minAvailable=1 would block every node drain. Removing it is deliberate.
+  - path: delete-pdb.yaml
+  # No autoscaler on a one-replica development namespace.
+  - path: delete-hpa.yaml

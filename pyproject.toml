@@ -1,0 +1,25 @@
+[tool.ruff]
+# The lab targets the interpreter available on the authoring machine (python3.9) and
+# the one in the container image (python:3.12-slim), so the floor stays at py39.
+target-version = "py39"
+line-length = 100
+extend-exclude = [".tools", ".venv", "build", "artifacts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "C4", "UP", "SIM", "RUF"]
+ignore = [
+  # Long lines in PromQL blocks and error strings are more readable unsplit.
+  "E501",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests import the shared checks through a sys.path tweak (see tests/conftest.py).
+"tests/*" = ["E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["invariants"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+filterwarnings = ["error::DeprecationWarning"]
